@@ -1,0 +1,39 @@
+<apex:page standardController="SSSClient__c" extensions="SSSClientController" recordSetVar="clients">
+    <apex:pageBlock title="Clients">
+
+        <apex:pageBlockTable value="{! clients }" var="cl">
+            <apex:variable value="{!0}" var="cnt"/>
+            <apex:column value="{! cl.Id }" style="width:10%"/>
+            <apex:column value="{!cl.Name}" style="width:40%"/>
+            <apex:column value="{! cl.Phone__c}"/>
+            <apex:column value="{! cl.AmountSpent__c }"/>
+
+            <apex:column >
+                <apex:outputLink
+                	value="{! URLFOR($Action.SSSClient__c.Edit, cl.Id) }">
+                	Edit
+           		</apex:outputLink>
+            	&nbsp;&nbsp;
+               <apex:outputLink
+                	value="{! URLFOR($Action.SSSClient__c.Delete, cl.Id) }">
+                	Del
+            	</apex:outputLink>
+     		</apex:column>
+            
+        </apex:pageBlockTable>
+        
+        <apex:form>
+            <apex:pageBlock title="New Client" mode="edit">
+              <apex:pageBlockButtons>
+                <apex:commandButton action="{!Sav}" value="Add Client"/>
+              </apex:pageBlockButtons>
+              <apex:pageBlockSection title="Client Info" columns="1">
+                <apex:inputField value="{!CLIENT.Name}" required="true"/>
+                <apex:inputField value="{!CLIENT.AmountSpent__c}"/>
+                <apex:inputField value="{!CLIENT.Phone__c}"/>
+              </apex:pageBlockSection>
+            </apex:pageBlock>
+      </apex:form>
+
+    </apex:pageBlock>
+</apex:page>

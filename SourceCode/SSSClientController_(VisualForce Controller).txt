@@ -1,0 +1,38 @@
+public class SSSClientController {
+      
+   //used to get a hold of the account record selected for deletion
+   public String SelectedAccountId { get; set; }
+   public SSSClient__c CLIENT { get; set; }
+
+  
+   public SSSClientController(ApexPages.StandardSetController stdController) {
+       //load account data into our DataTable
+       CLIENT = new SSSClient__c();
+   }
+  
+    public void Sav(){
+        System.debug('TRYING TO INSERT NEW');
+        System.debug(CLIENT);
+        insert CLIENT;
+        
+    }
+   public void Del()
+   {
+       System.debug('Activated!');
+      // if for any reason we are missing the reference 
+      if (SelectedAccountId == null) {
+      
+         return;
+      }
+     
+      // find the account record within the collection
+      SSSClient__c tobeDeleted = [SELECT Id, Name, Phone__c, AmountSpent__c FROM SSSClient__c WHERE Id=:SelectedAccountId];
+      
+      //if account record found delete it
+      if (tobeDeleted != null) {
+       delete tobeDeleted;
+      }
+   }    
+  
+
+}

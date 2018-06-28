@@ -1,0 +1,150 @@
+@RestResource(urlMapping='/SSSClient/*')
+global with sharing class SSSClientsManager {
+    
+    private static String key = '{FIRESTORE_KEY}';
+    private static String endPoint = 'https://firestore.googleapis.com/v1beta1/projects/csis659project/databases/(default)/documents/Clients/';
+
+    @HttpGet
+    global static List<SSSClient__c> getAccounts(){
+		List<SSSClient__c> clients = [SELECT Name, AmountSpent__c, Phone__c FROM SSSClient__c ORDER BY ID ASC];
+        System.debug(clients.size());
+        return clients; 
+    }
+    
+    @HttpPost
+    global static SSSClient__c newClient(){
+        RestRequest request = RestContext.request;
+        Map<String, Object> params = (Map<String, Object>)JSON.deserializeUntyped(request.requestbody.tostring());
+        
+        SSSClient__c client;
+        
+        String clientId = (String)params.get('Id');
+        
+        if(clientId != null){
+            System.debug('ID WAS FOUND!');
+            client = [SELECT Id,Name,AmountSpent__c, Phone__c FROM SSSClient__c WHERE Id=:clientId];
+        }else{
+            client = new SSSClient__c();
+        } 
+        
+        client.Name = (String)params.get('Name'); 
+        client.AmountSpent__c = (Double)params.get('AmountSpent__c'); 
+        client.Phone__c = (String)params.get('Phone__c');
+
+        try{
+            upsert client;
+            syncFS(client.Id,'update');
+        	System.debug(client.Id);
+        }catch(DmlException e){
+            System.debug('Error updating record!');
+        }
+    
+        return client;
+    }
+    
+    @HttpDelete
+    global static String deleteClient(){
+        Map<String,Object> rtn = new Map<String,Object>();
+        
+        RestRequest request = RestContext.request; 
+       	String uri = request.requestURI;
+
+        Integer firstIndex = uri.indexOf('SSSClient');
+        Integer secondIndex = uri.indexOf('/', firstIndex);
+        
+        String id = uri.substring(secondIndex+1);
+        System.debug(id);
+        
+        SSSClient__c client = [SELECT Id,Name,AmountSpent__c FROM SSSClient__c WHERE Id=:id];
+        String clientId = client.Id; 
+        try{
+            delete client; 
+            syncFS(clientId,'delete');
+            System.debug('Delete complete!');
+
+            rtn.put('result', 'SUCCESS');
+            rtn.put('message', id + ' was successfully deleted!');
+        }catch(DmlException e){
+            System.debug(e.getMessage());
+            rtn.put('result', 'FAILURE');
+            rtn.put('message', id + ' was NOT deleted!: ' + e.getMessage());
+        }
+       	
+        System.debug(JSON.serializePretty(rtn));
+        return JSON.serializePretty(rtn);
+    }
+    
+    @Future(callout=true)
+    public static void syncFS(String id, String action){
+        Http http = new Http(); 
+        HttpRequest fs = new HttpRequest();
+    	//Set Headers
+    	fs.setHeader('Authorization', 'Bearer '+key);
+   		fs.setHeader('Content-Type', 'application/json');
+        
+        switch on action{
+            when 'update'{
+                SSSClient__c client = [SELECT Id,Name,AmountSpent__c,Phone__c FROM SSSClient__c WHERE Id=:id];
+                updateFS(client,http,fs);
+            }
+            
+        	when 'delete'{
+            	deleteFS(id,http,fs);
+        	}
+        }
+    }
+    
+    private static void updateFS(SSSClient__c client, Http http, HttpRequest fs){
+        deleteFS(client.Id, http, fs);
+            
+        //Sync w/ Firestore 
+        Map<String, Object> fsParams = new Map<String, Object>();
+        Map<String, Object> fsFields = new Map<String, Object>();
+        Map<String, Object> fsObjects = new Map<String, Object>();
+
+
+        //Prepare fields
+        Map<String,Object> name = new Map<String,Object>();
+        name.put('stringValue',client.Name); 
+        
+        Map<String,Object> amount = new Map<String,Object>();
+        amount.put('stringValue','' + client.AmountSpent__c + '');
+        
+        Map<String,Object> phone = new Map<String,Object>();
+        phone.put('stringValue','' + client.Phone__c + '');
+        
+        Map<String,Object> clientId = new Map<String,Object>();
+        clientId.put('stringValue',client.Id);
+        
+        
+        fsFields.put('Name',name);
+        fsFields.put('AmountSpent__c',amount);
+        fsFields.put('Phone__c', phone);
+        fsFields.put('Id',clientId);
+                     
+        //Prepare final JSON
+        fsParams.put('fields',fsFields);
+        
+        //Prepare request
+        fs.setEndpoint(endpoint + '?documentId=' + client.Id);
+        fs.setMethod('POST');        
+        fs.setBody(JSON.serialize(fsParams));
+
+        //DEBUG
+        System.debug(fs.getBody());
+		//System.debug(fs);
+
+        //Debug response
+        HttpResponse response = http.send(fs);
+        System.debug(response.getBody());
+    }
+    private static void deleteFS(String clientId,Http http, HttpRequest fs){
+        String deletePt = endPoint + clientId;
+        
+        fs.setEndpoint(deletePt);
+        fs.setMethod('DELETE');
+        
+        HttpResponse response = http.send(fs);
+        System.debug('DELETE: ' + response.getStatusCode() + ' ' + response.getBody());
+    }
+}
